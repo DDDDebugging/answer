@@ -19,26 +19,22 @@ private:
     cv::Point matchLocation;
 
     void clickPointLoc_callback(){
-        //if(abs( matchLocation.y - 323) <= 75){
             auto message = geometry_msgs::msg::Point32();
             message.x = matchLocation.x + 50;
             message.y = 323;
             RCLCPP_INFO_STREAM(this->get_logger(),
                                "Send position: (" << message.x << " " << message.y << ")");
             clickPointPublisher->publish(message);
-        //}
     }
 
     void image_callback(const sensor_msgs::msg::Image &msg) {
-        //RCLCPP_INFO(this->get_logger(), "Receive image");
         cv_bridge::CvImagePtr cvImage;
         cvImage = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8);
         cvImage->image.copyTo(image); //获取ROS传来的图片
 
         line_detector();//获取判定线坐标
         note_detector();//识别音符坐标（模板匹配）
-        //发送模拟点击坐标
-        if(abs( matchLocation.y - 323) <= 110){
+        if(abs( matchLocation.y - 323) <= 120){//发送模拟点击坐标
             clickPointLoc_callback();
         }
     }
@@ -78,8 +74,6 @@ public:
         imageSubscription = this->create_subscription<sensor_msgs::msg::Image>(
                 "/raw_image", 10, std::bind( &Answer::image_callback, this, _1));
         clickPointPublisher = this->create_publisher<geometry_msgs::msg::Point32>( "/click_position", 10);
-        /*clickTimer = this->create_wall_timer(
-                20ms, std::bind(&Answer::clickPointLoc_callback, this));*/
     }
 };
 
