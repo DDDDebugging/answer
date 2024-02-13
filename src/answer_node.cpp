@@ -7,14 +7,23 @@
 
 using std::placeholders::_1;
 
-class ROS : public rclcpp::Node{
+cv::Point clickPointLoc;
+
+void mouse_detector( int event, int x, int y, int flags, void *param){
+    if(event == cv::EVENT_LBUTTONDOWN){
+        clickPointLoc.x = x;
+        clickPointLoc.y = y;
+        std::cout << "x: " << x << "y: " << y << std::endl; //测试用
+    }
+}
+
+class Answer : public rclcpp::Node{
 private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr imageSubscription;
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr clickPointPublisher;
 
-    static cv::Point clickPointLocation;
-    std::vector<cv::Vec4i> lines;
     cv::Mat image;
+    std::vector<cv::Vec4i> lines;
 
     void image_callback(const sensor_msgs::msg::Image &msg) {
         RCLCPP_INFO(this->get_logger(), "Receive image");
@@ -22,65 +31,52 @@ private:
         cvImage = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8);
         cvImage->image.copyTo(image); //获取ROS传来的图片
 
-        //接对图像的处理函数
-        line_detector();
-        music_point_detector();
-        cv::setMouseCallback( "winter_homework_2024.x86_64", mouse_detector);
-
-        auto data = geometry_msgs::msg::Point32();
-        data.x = clickPointLocation.x;
-        data.y = clickPointLocation.y;
-        clickPointPublisher->publish(data);
+        line_detector();//获取判定线坐标
+        note_detector();//识别音符坐标（模板匹配）
+        cv::setMouseCallback( "winter_homework_2024", mouse_detector);//获取鼠标点击坐标
     }
 
-    void line_detector(){//确定直线位置
-        cv::Mat dst;
-        cv::Canny( image, dst, 50, 200, 3);
-        cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 200, 22);
+    //获取判定线坐标
+    void line_detector(){
+        cv::Mat color_dst,dst;
+        cv::cvtColor( image, color_dst, cv::COLOR_BGR2GRAY);
+        cv::Canny( color_dst, dst, 100, 200);
+        cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 500, 22);
 
-        std::cout << lines[0][1] << ';' <<lines[0][3] << std::endl; //测试用
+        for( cv::Vec< int, 4> n : lines)
+            std::cout << n;
+        std::cout << "\n"; //测试用
     }
 
-    void music_point_detector(){//模板匹配找音符位置
+    //识别音符坐标（模板匹配）
+    void note_detector(){
         cv::Mat tmp = cv::imread("click.png");
-        cv::cvtColor( image, image, cv::COLOR_BGR2GRAY);
-        cv::cvtColor( tmp, tmp, cv::COLOR_BGR2GRAY);
-        cv::resize( tmp, tmp, cv::Size( 50, 10));
+        cv::resize( tmp, tmp, cv::Size( 150, 15));
         int result_rows = image.rows - tmp.rows + 1;
         int result_cols = image.cols - tmp.cols + 1;
         cv::Mat result( result_cols, result_rows, CV_32FC1);
         cv::matchTemplate( image, tmp, result, cv::TM_CCOEFF_NORMED);
         cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
+
         double minValue,maxValue;
         cv::Point minLocation,maxLocation,matchLocation;
         cv::minMaxLoc( result, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
         matchLocation = maxLocation;
 
-        std::cout << matchLocation <<std::endl;//测试用
-    }
-
-    static void mouse_detector( int event, int x, int y, int flags, void *userdata){ //获取鼠标点击坐标
-        if(event == cv::EVENT_LBUTTONUP){
-            clickPointLocation.x = x;
-            clickPointLocation.y = y;
-
-            std::cout << "x: " << clickPointLocation.x << "y: " << clickPointLocation.y << std::endl;//测试用
-        }
+        std::cout << "matchLocation: " << matchLocation << std::endl; //测试用
     }
 
 public:
-    ROS() : Node("ros_node") {
+    Answer() : Node("answer_node") {
         imageSubscription = this->create_subscription<sensor_msgs::msg::Image>(
-                "/raw_image", 10, std::bind( &ROS::image_callback, this, _1));
+                "/raw_image", 10, std::bind( &Answer::image_callback, this, _1));
         clickPointPublisher = this->create_publisher<geometry_msgs::msg::Point32>( "/click_position", 10);
     }
 };
 
-cv::Point clickPointLocation;
-
 int main(int argc, char **argv){
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<ROS>());
+    rclcpp::spin(std::make_shared<Answer>());
     rclcpp::shutdown();
     return 0;
 }
