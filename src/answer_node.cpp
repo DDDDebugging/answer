@@ -5,35 +5,42 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 
+using namespace std::chrono_literals;
 using std::placeholders::_1;
-
-cv::Point clickPointLoc;
-
-void mouse_detector( int event, int x, int y, int flags, void *param){
-    if(event == cv::EVENT_LBUTTONDOWN){
-        clickPointLoc.x = x;
-        clickPointLoc.y = y;
-        std::cout << "x: " << x << "y: " << y << std::endl; //测试用
-    }
-}
 
 class Answer : public rclcpp::Node{
 private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr imageSubscription;
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr clickPointPublisher;
+    rclcpp::TimerBase::SharedPtr clickTimer;
 
     cv::Mat image;
     std::vector<cv::Vec4i> lines;
+    cv::Point matchLocation;
+
+    void clickPointLoc_callback(){
+        //if(abs( matchLocation.y - 323) <= 75){
+            auto message = geometry_msgs::msg::Point32();
+            message.x = matchLocation.x + 50;
+            message.y = 323;
+            RCLCPP_INFO_STREAM(this->get_logger(),
+                               "Send position: (" << message.x << " " << message.y << ")");
+            clickPointPublisher->publish(message);
+        //}
+    }
 
     void image_callback(const sensor_msgs::msg::Image &msg) {
-        RCLCPP_INFO(this->get_logger(), "Receive image");
+        //RCLCPP_INFO(this->get_logger(), "Receive image");
         cv_bridge::CvImagePtr cvImage;
         cvImage = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8);
         cvImage->image.copyTo(image); //获取ROS传来的图片
 
         line_detector();//获取判定线坐标
         note_detector();//识别音符坐标（模板匹配）
-        cv::setMouseCallback( "winter_homework_2024", mouse_detector);//获取鼠标点击坐标
+        //发送模拟点击坐标
+        if(abs( matchLocation.y - 323) <= 110){
+            clickPointLoc_callback();
+        }
     }
 
     //获取判定线坐标
@@ -43,9 +50,9 @@ private:
         cv::Canny( color_dst, dst, 100, 200);
         cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 500, 22);
 
-        for( cv::Vec< int, 4> n : lines)
-            std::cout << n;
-        std::cout << "\n"; //测试用
+//        for( cv::Vec< int, 4> n : lines)
+//            std::cout << n;
+//        std::cout << "\n"; //测试用
     }
 
     //识别音符坐标（模板匹配）
@@ -59,11 +66,11 @@ private:
         cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
 
         double minValue,maxValue;
-        cv::Point minLocation,maxLocation,matchLocation;
+        cv::Point minLocation,maxLocation;
         cv::minMaxLoc( result, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
         matchLocation = maxLocation;
 
-        std::cout << "matchLocation: " << matchLocation << std::endl; //测试用
+        //std::cout << "matchLocation: " << matchLocation << std::endl; //测试用
     }
 
 public:
@@ -71,6 +78,8 @@ public:
         imageSubscription = this->create_subscription<sensor_msgs::msg::Image>(
                 "/raw_image", 10, std::bind( &Answer::image_callback, this, _1));
         clickPointPublisher = this->create_publisher<geometry_msgs::msg::Point32>( "/click_position", 10);
+        /*clickTimer = this->create_wall_timer(
+                20ms, std::bind(&Answer::clickPointLoc_callback, this));*/
     }
 };
 
