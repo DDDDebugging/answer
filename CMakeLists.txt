@@ -22,7 +22,8 @@ ament_auto_find_build_dependencies()
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-ament_auto_add_executable(answer_node src/answer_node.cpp)
+ament_auto_add_executable(answer_node src/answer_node.cpp src/answer.cpp)
+target_include_directories(answer_node PRIVATE include)
 target_link_libraries(${PROJECT_NAME}_node ${OpenCV_LIBRARIES})
 target_compile_features(answer_node PUBLIC c_std_99 cxx_std_17)
 
