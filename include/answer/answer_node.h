@@ -22,17 +22,21 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr clickPointPublisher;
 
     cv::Mat image;
+    cv::Mat tmp = cv::imread("click.png");
     std::vector<cv::Vec4i> lines;
+    std::vector<cv::Vec4i> turned_lines;
     cv::Point matchLocation;
+    cv::Point turned_matchLocation;
     int mode;
     double angle;
+    double pro;
 
     void clickPointLoc_callback();
     void image_callback(const sensor_msgs::msg::Image &msg);
 
     void line_detector();//获取判定线坐标
+    void turned_line_detector(cv::Mat & src_dst);//获取旋转后判定线坐标
     void note_detector();//识别音符坐标（模板匹配
-    void image_threshold();//对图片进行二值化处理
 
 public:
     Answer();
