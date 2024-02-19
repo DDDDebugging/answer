@@ -11,11 +11,11 @@ void Answer::clickPointLoc_callback(){
         message.y = (lines[0][1] + lines[1][1]) / 2 - 10;
     }
     else if(mode == 1){
-        message.x = matchLocation.x + 20;
-        message.y = matchLocation.y - 30;
+        message.x = matchLocation.x + 15;
+        message.y = matchLocation.y;
     }
     else{
-        message.x = matchLocation.x;
+        message.x = matchLocation.x - 10;
         message.y = matchLocation.y - 30;
     }
     RCLCPP_INFO_STREAM(this->get_logger(),
@@ -36,7 +36,7 @@ void Answer::image_callback(const sensor_msgs::msg::Image &msg) {
             clickPointLoc_callback();
     }
     else{
-        if(getDistance() <= 131)
+        if(getDistance() <= 129)
             clickPointLoc_callback();
     }
 }
@@ -148,14 +148,14 @@ void Answer::note_detector(){
         if(x >= nw / 2){
             x -= (nw - w) / 2;
             y -= (nh - h) / 2;
-            matchLocation.x = x;
-            matchLocation.y = y + angle * 823 * abs(matchLocation.x - w / 2) / (w / 2);
+            matchLocation.x = x + 100 * angle;
+            matchLocation.y = y + angle * 822 * abs(matchLocation.x - w / 2) / (w / 2);
         }
         else{
             x -= (nw - w) / 2;
             y -= (nh - h) / 2;
-            matchLocation.x = x;
-            matchLocation.y = y - angle * 645 * abs(matchLocation.x - w / 2) / (w / 2);
+            matchLocation.x = x + 20;
+            matchLocation.y = y;  //- angle * 642 * abs(matchLocation.x - w / 2) / (w / 2);
         }
         //测试
         //std::cout << "matchLocation: " << matchLocation << std::endl;
@@ -170,14 +170,14 @@ void Answer::note_detector(){
         if(x <= nw / 2){
             x -= (nw - w) / 2;
             y -= (nh - h) / 2;
-            matchLocation.x = x;
-            matchLocation.y = y + angle * 823 * abs(matchLocation.x - w / 2) / (w / 2);
+            matchLocation.x = x + 100 * angle;
+            matchLocation.y = y + angle * 822 * abs(matchLocation.x - w / 2) / (w / 2);
         }
         else{
             x -= (nw - w) / 2;
             y -= (nh - h) / 2;
-            matchLocation.x = x;
-            matchLocation.y = y - angle * 645 * abs(matchLocation.x - w / 2) / (w / 2);
+            matchLocation.x = x + 20;
+            matchLocation.y = y; // - angle * 642 * abs(matchLocation.x - w / 2) / (w / 2);
         }
         //测试用
         //std::cout << "matchLocation: " << matchLocation << std::endl;
@@ -193,7 +193,7 @@ float Answer::getDistance(){
     B = lines[0][2] - lines[0][0];
     C = lines[0][0] * lines[0][3] - lines[0][1] * lines[0][2];
     distance = ((float)abs( A * matchLocation.x + B * matchLocation.y + C) / ((float) sqrtf(A * A + B * B)));
-    std::cout << "distance: " << distance << std::endl;
+    //std::cout << "distance: " << distance << std::endl;
     return distance;
 }
 

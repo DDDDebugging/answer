@@ -5,7 +5,7 @@ set(answer_BUILD_DEPENDS "rclcpp" "geometry_msgs" "sensor_msgs" "cv_bridge" "Ope
 set(answer_BUILDTOOL_DEPENDS "ament_cmake")
 set(answer_BUILD_EXPORT_DEPENDS "rclcpp" "geometry_msgs" "sensor_msgs" "cv_bridge" "OpenCV")
 set(answer_BUILDTOOL_EXPORT_DEPENDS )
-set(answer_EXEC_DEPENDS "rclcpp" "geometry_msgs" "sensor_msgs" "cv_bridge" "OpenCV")
+set(answer_EXEC_DEPENDS "ros2launch" "rclcpp" "geometry_msgs" "sensor_msgs" "cv_bridge" "OpenCV")
 set(answer_TEST_DEPENDS "ament_lint_auto" "ament_lint_common")
 set(answer_GROUP_DEPENDS )
 set(answer_MEMBER_OF_GROUPS )
