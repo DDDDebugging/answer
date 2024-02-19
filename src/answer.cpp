@@ -6,8 +6,18 @@
 
 void Answer::clickPointLoc_callback(){
     auto message = geometry_msgs::msg::Point32();
+    if(mode == 0){
+        message.x = matchLocation.x + 30;
+        message.y = (lines[0][1] + lines[1][1]) / 2 - 10;
+    }
+    else if(mode == 1){
+        message.x = matchLocation.x + 20;
+        message.y = matchLocation.y - 30;
+    }
+    else{
         message.x = matchLocation.x;
-        message.y = matchLocation.y;
+        message.y = matchLocation.y - 30;
+    }
     RCLCPP_INFO_STREAM(this->get_logger(),
                        "Send position: (" << message.x << " " << message.y << ")");
     clickPointPublisher->publish(message);
@@ -21,15 +31,13 @@ void Answer::image_callback(const sensor_msgs::msg::Image &msg) {
     line_detector();//获取原图判定线坐标
     note_detector();//识别音符坐标（模板匹配）
 
-    if(mode == 0){  //EZ难度
-        if(abs( matchLocation.y - (lines[0][1] + lines[1][1]) / 2) <= 128){//发送模拟点击坐标
+    if(mode == 0){//EZ难度
+        if(abs( matchLocation.y - (lines[0][1] + lines[1][1]) / 2) <= 100)//发送模拟点击坐标
             clickPointLoc_callback();
-        }
     }
     else{
-        if(turned_matchLocation.y - (turned_lines[0][1] + turned_lines[1][1]) <= 115.0 * pro){
+        if(getDistance() <= 131)
             clickPointLoc_callback();
-        }
     }
 }
 
@@ -37,20 +45,9 @@ void Answer::image_callback(const sensor_msgs::msg::Image &msg) {
 void Answer::line_detector(){
     cv::Mat dst;
     cv::Canny( image, dst, 100, 200);
-    cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 500, 22);
-
-    /*for( cv::Vec< int, 4> n : lines)
-        std::cout << n;
-    std::cout << "\n"; //测试用*/
-}
-
-//获取旋转后判定线坐标
-void Answer::turned_line_detector(cv::Mat & src_dst){
-    cv::Mat dst;
-    cv::Canny( src_dst, dst, 100, 200);
-    cv::HoughLinesP( dst, turned_lines, 1, CV_PI/180, 10, 500, 22);
-
-    /*for( cv::Vec< int, 4> n : turned_lines)
+    cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 200, 22);
+    /*std::cout << "lines: " << std::endl;
+    for( cv::Vec< int, 4> n : lines)
         std::cout << n;
     std::cout << "\n"; //测试用*/
 }
@@ -59,107 +56,145 @@ void Answer::turned_line_detector(cv::Mat & src_dst){
 void Answer::note_detector(){
     cv::Mat src,src_dst; //存放临时旋转后的模板
     image.copyTo(src);
-    int w = src.cols;
-    int h = src.rows;
-    int nw,nh;
+    float w = src.cols;
+    float h = src.rows;
+    float nw,nh;
     cv::Mat M;
+    matchLocation = cv::Point(0,0);
+    turned_matchLocation = cv::Point(0,0);
     //原图旋转
     if(lines[0][1] < lines[0][3]){
         angle = std::atan((lines[0][3] - lines[0][1]) * 1.0 / (lines[0][2] - lines[0][0]));
-        M = cv::getRotationMatrix2D( cv::Point2f( src.cols * 1.0 / 2, src.rows * 1.0 / 2), angle / CV_PI * 180, 1.0);
+        M = cv::getRotationMatrix2D( cv::Point2f( w / 2, h / 2), angle / CV_PI * 180, 1.0);
         double cos = std::abs(M.at<double>(0,0));
         double sin = std::abs(M.at<double>(0,1));
-        nw = src.cols * cos + src.rows * sin;
-        nh = src.cols * sin + src.rows * cos;
-        M.at<double>(0,2) += (nw / 2 - src.cols / 2);
-        M.at<double>(1,2) += (nh / 2 - src.rows / 2);
+        nw = w * cos + h * sin;
+        nh = w * sin + h * cos;
+        M.at<double>(0,2) += (nw / 2 - w / 2);
+        M.at<double>(1,2) += (nh / 2 - h / 2);
         cv::warpAffine( src, src_dst, M, cv::Size( nw, nh));
-        cv::resize( tmp, tmp, cv::Size(150.0 / nw * w, 18.0 / nh * h));
+        cv::resize( tmp, tmp, cv::Size(155, 16));
         mode = 1; //判定线左高右低
-        turned_line_detector(src_dst);//获取旋转后判定线的位置
-        pro = h * 1.0 / nh;
     }
-    else if(lines[0][1] > lines[0][3]) {
+    else if(lines[0][1] > lines[0][3]){
         angle = std::atan((lines[0][1] - lines[0][3]) * 1.0 / (lines[0][2] - lines[0][0]));
-        M = cv::getRotationMatrix2D(cv::Point2f(src.cols * 1.0 / 2, src.rows * 1.0 / 2), -angle / CV_PI * 180, 1.0);
+        M = cv::getRotationMatrix2D(cv::Point2f(w * 1.0 / 2, h * 1.0 / 2), -angle / CV_PI * 180, 1.0);
         double cos = std::abs(M.at<double>(0, 0));
         double sin = std::abs(M.at<double>(0, 1));
-        nw = src.cols * cos + src.rows * sin;
-        nh = src.cols * sin + src.rows * cos;
-        M.at<double>(0, 2) += (nw / 2 - src.cols / 2);
-        M.at<double>(1, 2) += (nh / 2 - src.rows / 2);
+        nw = w * cos + h * sin;
+        nh = w * sin + h * cos;
+        M.at<double>(0, 2) += (nw / 2 - w / 2);
+        M.at<double>(1, 2) += (nh / 2 - h / 2);
         cv::warpAffine(src, src_dst, M, cv::Size(nw, nh));
-        cv::resize(tmp, tmp, cv::Size(150.0 / nw * w, 18.0 / nh * h));
+        cv::resize(tmp, tmp, cv::Size(155, 16));
         mode = 2; //判定线左低右高
-        turned_line_detector(src_dst);//获取旋转后判定线的位置
-        pro = h * 1.0 / nh;
     }
     else{
-        cv::resize( tmp, tmp, cv::Size( 150, 15));
+        cv::resize( tmp, tmp, cv::Size( 155, 16));
         mode = 0;//EZ难度
     }
-
     //模板匹配
-    cv::Mat dst;
-    cv::Canny( image, dst, 100, 200, 3 );
     if(mode != 0){
         int result_rows = src_dst.rows - tmp.rows + 1;
         int result_cols = src_dst.cols - tmp.cols + 1;
         cv::Mat result( result_cols, result_rows, CV_32FC1);
         cv::matchTemplate( src_dst, tmp, result, cv::TM_CCOEFF_NORMED);
         cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
-        double minValue,maxValue;
-        cv::Point minLocation,maxLocation;
-        cv::minMaxLoc( result, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
-        turned_matchLocation = maxLocation;
-
-        std::cout << "turned_matchLocation: " << turned_matchLocation << std::endl; //测试用
-        cv::circle( src_dst, cv::Point(turned_matchLocation.x + 80, turned_matchLocation.y), 2, cv::Scalar( 0, 0, 255), -1);
-        cv::imwrite("test1.jpg",src_dst);
-
-        //反推回在原图中的匹配坐标
-        if(mode == 1){
-            float dx = M.at<double>(0,2);
-            float dy = M.at<double>(1,2);
-            float x = (turned_matchLocation.x - dx) * cos(-angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(-angle * CV_PI / 180) + dx;
-            float y = (turned_matchLocation.x - dx) * sin(-angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(-angle * CV_PI / 180) + dy;
-            x = x / nw * w;
-            y = y / nh * h;
-            matchLocation.x = x + 80;
-            matchLocation.y = y;
-            //测试用
-            //std::cout << "matchLocation: " << matchLocation << std::endl;
-            /*cv::circle( src, cv::Point(x + 80,y), 2, cv::Scalar( 0, 0, 255), -1);
-            cv::imwrite("test2.jpg",src);*/
+        int i,j;
+        for( i = 0; i < result_cols; i++){
+            for( j = 0; j < result_rows; j++){
+                if(result.at<float>(j,i) > 0.85){
+                    if(j > turned_matchLocation.y){
+                        turned_matchLocation.y = j;
+                        turned_matchLocation.x = i;
+                    }
+                }
+            }
         }
-        else if(mode == 2){
-            float dx = M.at<double>(0,2);
-            float dy = M.at<double>(1,2);
-            float x = (turned_matchLocation.x - dx) * cos(angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(angle * CV_PI / 180) + dx;
-            float y = (turned_matchLocation.x - dx) * sin(angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(angle * CV_PI / 180) + dy;
-            x = x / nw * w;
-            y = y / nh * h;
-            matchLocation.x = x;
-            matchLocation.y = y + 40;
-            //测试用
-            //std::cout << "matchLocation: " << matchLocation << std::endl;
-            /*cv::circle( src, cv::Point(x + 80,y), 2, cv::Scalar( 0, 0, 255), -1);
-            cv::imwrite("test2.jpg",src);*/
-        }
+        turned_matchLocation.x += 20;
+        /*std::cout << "turned_matchLocation: " << turned_matchLocation << std::endl;
+        cv::circle( src_dst, cv::Point(turned_matchLocation.x, turned_matchLocation.y), 2, cv::Scalar( 0, 0, 255), -1);
+        cv::imwrite("test2.jpg",src_dst);*/
     }
     else{
-        int result_rows = image.rows - tmp.rows + 1;
-        int result_cols = image.cols - tmp.cols + 1;
+        int result_rows = src.rows - tmp.rows + 1;
+        int result_cols = src.cols - tmp.cols + 1;
         cv::Mat result( result_cols, result_rows, CV_32FC1);
-        cv::matchTemplate( image, tmp, result, cv::TM_CCOEFF_NORMED);
+        cv::matchTemplate( src, tmp, result, cv::TM_CCOEFF_NORMED);
         cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
-        double minValue,maxValue;
-        cv::Point minLocation,maxLocation;
-        cv::minMaxLoc( result, &minValue, &maxValue, &minLocation, &maxLocation, cv::Mat());
-        matchLocation = maxLocation;
-        matchLocation.x += 60;
-        std::cout << "matchLocation: " << matchLocation << std::endl; //测试用
+        int i,j;
+        for( i = 0; i < result_cols; i++){
+            for( j = 0; j < result_rows; j++){
+                if(result.at<float>(j,i) > 0.85){
+                    if(j > matchLocation.y){
+                        matchLocation.y = j;
+                        matchLocation.x = i;
+                    }
+                }
+            }
+        }
+        /*std::cout << "matchLocation: " << matchLocation <<std::endl;
+        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 2, cv::Scalar( 0, 0, 255), -1);
+        cv::imwrite("test2.jpg",src);*/
     }
+    //std::cout << "angle: " << angle << std::endl;
+    //反推回在原图中的匹配坐标
+    if(mode == 1){
+        float dx = nw / 2;
+        float dy = nh / 2;
+        float x,y;
+        x = (turned_matchLocation.x - dx) * cos(-angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(-angle * CV_PI / 180) + dx;
+        y = (turned_matchLocation.x - dx) * sin(-angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(-angle * CV_PI / 180) + dy;
+        if(x >= nw / 2){
+            x -= (nw - w) / 2;
+            y -= (nh - h) / 2;
+            matchLocation.x = x;
+            matchLocation.y = y + angle * 823 * abs(matchLocation.x - w / 2) / (w / 2);
+        }
+        else{
+            x -= (nw - w) / 2;
+            y -= (nh - h) / 2;
+            matchLocation.x = x;
+            matchLocation.y = y - angle * 645 * abs(matchLocation.x - w / 2) / (w / 2);
+        }
+        //测试
+        //std::cout << "matchLocation: " << matchLocation << std::endl;
+        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 3, cv::Scalar( 0, 0, 255), -1);
+        cv::imwrite("test3.jpg",src);
+    }
+    else if(mode == 2){ //逆时针转回去
+        float dx = nw / 2;
+        float dy = nh / 2;
+        float x = (turned_matchLocation.x - dx) * cos(angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(angle * CV_PI / 180) + dx;
+        float y = (turned_matchLocation.x - dx) * sin(angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(angle * CV_PI / 180) + dy;
+        if(x <= nw / 2){
+            x -= (nw - w) / 2;
+            y -= (nh - h) / 2;
+            matchLocation.x = x;
+            matchLocation.y = y + angle * 823 * abs(matchLocation.x - w / 2) / (w / 2);
+        }
+        else{
+            x -= (nw - w) / 2;
+            y -= (nh - h) / 2;
+            matchLocation.x = x;
+            matchLocation.y = y - angle * 645 * abs(matchLocation.x - w / 2) / (w / 2);
+        }
+        //测试用
+        //std::cout << "matchLocation: " << matchLocation << std::endl;
+        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 3, cv::Scalar( 0, 0, 255), -1);
+        cv::imwrite("test3.jpg",src);
+    }
+}
+
+float Answer::getDistance(){
+    float distance = 0;
+    int A = 0, B = 0, C = 0;
+    A = lines[0][1] - lines[0][3];
+    B = lines[0][2] - lines[0][0];
+    C = lines[0][0] * lines[0][3] - lines[0][1] * lines[0][2];
+    distance = ((float)abs( A * matchLocation.x + B * matchLocation.y + C) / ((float) sqrtf(A * A + B * B)));
+    std::cout << "distance: " << distance << std::endl;
+    return distance;
 }
 
 Answer::Answer() : Node("answer_node") {
@@ -168,7 +203,7 @@ Answer::Answer() : Node("answer_node") {
     clickPointPublisher = this->create_publisher<geometry_msgs::msg::Point32>( "/click_position", 10);
     mode = 0;
     angle = 0;
-    matchLocation = cv::Point(0,0);
+    matchLocation.x =0;
+    matchLocation.y =0;
     turned_matchLocation = cv::Point(0,0);
-    pro = 1.0;
 }
