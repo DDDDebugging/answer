@@ -22,7 +22,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr clickPointPublisher;
 
     cv::Mat image;
-    cv::Mat tmp = cv::imread("click.png");
+    cv::Mat tmp = cv::imread("../click.png");
     std::vector<cv::Vec4i> lines;
     cv::Point2f matchLocation;
     cv::Point2f turned_matchLocation;

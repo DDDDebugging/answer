@@ -18,8 +18,6 @@ void Answer::clickPointLoc_callback(){
         message.x = matchLocation.x + 15;
         message.y = matchLocation.y - 15;
     }
-    RCLCPP_INFO_STREAM(this->get_logger(),
-                       "Send position: (" << message.x << " " << message.y << ")");
     clickPointPublisher->publish(message);
 }
 
