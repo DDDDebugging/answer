@@ -11,12 +11,12 @@ void Answer::clickPointLoc_callback(){
         message.y = (lines[0][1] + lines[1][1]) / 2 - 10;
     }
     else if(mode == 1){
-        message.x = matchLocation.x + 15;
+        message.x = matchLocation.x + 10;
         message.y = matchLocation.y;
     }
     else{
-        message.x = matchLocation.x - 10;
-        message.y = matchLocation.y - 30;
+        message.x = matchLocation.x + 15;
+        message.y = matchLocation.y - 15;
     }
     RCLCPP_INFO_STREAM(this->get_logger(),
                        "Send position: (" << message.x << " " << message.y << ")");
@@ -32,11 +32,11 @@ void Answer::image_callback(const sensor_msgs::msg::Image &msg) {
     note_detector();//识别音符坐标（模板匹配）
 
     if(mode == 0){//EZ难度
-        if(abs( matchLocation.y - (lines[0][1] + lines[1][1]) / 2) <= 100)//发送模拟点击坐标
+        if(abs( matchLocation.y - (lines[0][1] + lines[1][1]) / 2) <= 105)//发送模拟点击坐标
             clickPointLoc_callback();
     }
     else{
-        if(getDistance() <= 129)
+        if(getDistance() <= 130 * (0.9 + angle))
             clickPointLoc_callback();
     }
 }
@@ -46,10 +46,6 @@ void Answer::line_detector(){
     cv::Mat dst;
     cv::Canny( image, dst, 100, 200);
     cv::HoughLinesP( dst, lines, 1, CV_PI/180, 10, 200, 22);
-    /*std::cout << "lines: " << std::endl;
-    for( cv::Vec< int, 4> n : lines)
-        std::cout << n;
-    std::cout << "\n"; //测试用*/
 }
 
 //识别音符坐标（模板匹配）
@@ -78,7 +74,7 @@ void Answer::note_detector(){
     }
     else if(lines[0][1] > lines[0][3]){
         angle = std::atan((lines[0][1] - lines[0][3]) * 1.0 / (lines[0][2] - lines[0][0]));
-        M = cv::getRotationMatrix2D(cv::Point2f(w * 1.0 / 2, h * 1.0 / 2), -angle / CV_PI * 180, 1.0);
+        M = cv::getRotationMatrix2D(cv::Point2f(w / 2, h / 2), -angle / CV_PI * 180, 1.0);
         double cos = std::abs(M.at<double>(0, 0));
         double sin = std::abs(M.at<double>(0, 1));
         nw = w * cos + h * sin;
@@ -112,88 +108,46 @@ void Answer::note_detector(){
             }
         }
         turned_matchLocation.x += 20;
-        /*std::cout << "turned_matchLocation: " << turned_matchLocation << std::endl;
-        cv::circle( src_dst, cv::Point(turned_matchLocation.x, turned_matchLocation.y), 2, cv::Scalar( 0, 0, 255), -1);
-        cv::imwrite("test2.jpg",src_dst);*/
     }
-    else{
+    else {
         int result_rows = src.rows - tmp.rows + 1;
         int result_cols = src.cols - tmp.cols + 1;
-        cv::Mat result( result_cols, result_rows, CV_32FC1);
-        cv::matchTemplate( src, tmp, result, cv::TM_CCOEFF_NORMED);
-        cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
-        int i,j;
-        for( i = 0; i < result_cols; i++){
-            for( j = 0; j < result_rows; j++){
-                if(result.at<float>(j,i) > 0.85){
-                    if(j > matchLocation.y){
+        cv::Mat result(result_cols, result_rows, CV_32FC1);
+        cv::matchTemplate(src, tmp, result, cv::TM_CCOEFF_NORMED);
+        cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
+        int i, j;
+        for (i = 0; i < result_cols; i++) {
+            for (j = 0; j < result_rows; j++) {
+                if (result.at<float>(j, i) > 0.85) {
+                    if (j > matchLocation.y) {
                         matchLocation.y = j;
                         matchLocation.x = i;
                     }
                 }
             }
         }
-        /*std::cout << "matchLocation: " << matchLocation <<std::endl;
-        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 2, cv::Scalar( 0, 0, 255), -1);
-        cv::imwrite("test2.jpg",src);*/
     }
-    //std::cout << "angle: " << angle << std::endl;
-    //反推回在原图中的匹配坐标
+    //反推回原图坐标
     if(mode == 1){
-        float dx = nw / 2;
-        float dy = nh / 2;
         float x,y;
-        x = (turned_matchLocation.x - dx) * cos(-angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(-angle * CV_PI / 180) + dx;
-        y = (turned_matchLocation.x - dx) * sin(-angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(-angle * CV_PI / 180) + dy;
-        if(x >= nw / 2){
-            x -= (nw - w) / 2;
-            y -= (nh - h) / 2;
-            matchLocation.x = x + 100 * angle;
-            matchLocation.y = y + angle * 822 * abs(matchLocation.x - w / 2) / (w / 2);
-        }
-        else{
-            x -= (nw - w) / 2;
-            y -= (nh - h) / 2;
-            matchLocation.x = x + 20;
-            matchLocation.y = y;  //- angle * 642 * abs(matchLocation.x - w / 2) / (w / 2);
-        }
-        //测试
-        //std::cout << "matchLocation: " << matchLocation << std::endl;
-        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 3, cv::Scalar( 0, 0, 255), -1);
-        cv::imwrite("test3.jpg",src);
+        x = turned_matchLocation.x * cos(angle) - turned_matchLocation.y * sin(angle) + w * sin(angle) * sin(angle);
+        y = turned_matchLocation.x * sin(angle) + turned_matchLocation.y * cos(angle) - w * sin(angle) * cos(angle);
+        matchLocation.x = x;
+        matchLocation.y = y;
     }
-    else if(mode == 2){ //逆时针转回去
-        float dx = nw / 2;
-        float dy = nh / 2;
-        float x = (turned_matchLocation.x - dx) * cos(angle * CV_PI / 180) - (turned_matchLocation.y - dy) * sin(angle * CV_PI / 180) + dx;
-        float y = (turned_matchLocation.x - dx) * sin(angle * CV_PI / 180) + (turned_matchLocation.y - dy) * cos(angle * CV_PI / 180) + dy;
-        if(x <= nw / 2){
-            x -= (nw - w) / 2;
-            y -= (nh - h) / 2;
-            matchLocation.x = x + 100 * angle;
-            matchLocation.y = y + angle * 822 * abs(matchLocation.x - w / 2) / (w / 2);
-        }
-        else{
-            x -= (nw - w) / 2;
-            y -= (nh - h) / 2;
-            matchLocation.x = x + 20;
-            matchLocation.y = y; // - angle * 642 * abs(matchLocation.x - w / 2) / (w / 2);
-        }
-        //测试用
-        //std::cout << "matchLocation: " << matchLocation << std::endl;
-        cv::circle( src, cv::Point(matchLocation.x, matchLocation.y), 3, cv::Scalar( 0, 0, 255), -1);
-        cv::imwrite("test3.jpg",src);
+    else if(mode == 2){
+        float x,y;
+        x = turned_matchLocation.x * cos(angle) + turned_matchLocation.y * sin(angle) - h * sin(angle) * cos(angle);
+        y = - turned_matchLocation.x * sin(angle) + turned_matchLocation.y * cos(angle) + h * sin(angle) * sin(angle);
+        matchLocation.x = x;
+        matchLocation.y = y;
     }
 }
 
 float Answer::getDistance(){
     float distance = 0;
-    int A = 0, B = 0, C = 0;
-    A = lines[0][1] - lines[0][3];
-    B = lines[0][2] - lines[0][0];
-    C = lines[0][0] * lines[0][3] - lines[0][1] * lines[0][2];
-    distance = ((float)abs( A * matchLocation.x + B * matchLocation.y + C) / ((float) sqrtf(A * A + B * B)));
-    //std::cout << "distance: " << distance << std::endl;
+    int x1 = lines[0][0], x2 = lines[0][2], y1 = lines[0][1], y2 = lines[0][3]; //取直线上两点
+    distance = abs((y2 - y1) * (matchLocation.x - x1) + (y1 - matchLocation.y) * (x2 - x1)) / std::sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
     return distance;
 }
 
