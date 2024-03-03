@@ -5,6 +5,8 @@
 #ifndef ANSWER_ANSWER_NODE_H
 #define ANSWER_ANSWER_NODE_H
 
+
+
 #include <iostream>
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/point32.hpp>
@@ -22,7 +24,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr clickPointPublisher;
 
     cv::Mat image;
-    cv::Mat tmp = cv::imread("../click.png");
+    cv::Mat tmp = cv::imread(CLICK_NOTE);
     std::vector<cv::Vec4i> lines;
     cv::Point2f matchLocation;
     cv::Point2f turned_matchLocation;

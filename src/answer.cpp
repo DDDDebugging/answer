@@ -34,7 +34,7 @@ void Answer::image_callback(const sensor_msgs::msg::Image &msg) {
             clickPointLoc_callback();
     }
     else{
-        if(getDistance() <= 15 * (0.95 + angle))
+        if(getDistance() <= 130 * (0.95 + angle))
             clickPointLoc_callback();
     }
 }
